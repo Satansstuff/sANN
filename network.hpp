@@ -27,15 +27,14 @@ namespace sa
 	{
 		return 1.0 / (1.0 + exp(-f));
 	}
-	template <typename T>
-	static T dfsigm(T f)
-	{
-		return exp(f) / pow(exp(f) + 1, 2);
-	}
 	struct neuron
 	{
 		std::vector<double> m_weights;
+		std::vector<double> m_deltaWeights;
+		double bias = 1;
 		double output = 0;
+		double gain;
+		double wgain;
 		double lc;
 		neuron(size_t num_weights, double learning = 0.01)
 		{
@@ -51,7 +50,7 @@ namespace sa
 		}
 		void feedForward(layer &prevLayer)
 		{
-			double sum = 0;
+			double sum = bias;
 			for (auto neuron : prevLayer)
 			{
 				for (auto &weight : neuron->m_weights)
@@ -76,6 +75,14 @@ namespace sa
 		bool initialized;
 		std::vector<layer> m_layers;
 	public:
+		void saveToFile(const std::string &f)
+		{
+
+		}
+		void loadFromFile(const std::string &f)
+		{
+
+		}
 		void evolve()
 		{
 			std::random_device rd;
@@ -100,7 +107,7 @@ namespace sa
 		template <class... Params>
 		void construct(Params... params)
 		{
-			std::array<unsigned, sizeof...(params)> layers = { (size_t)params... };
+			std::array<size_t, sizeof...(params)> layers = { (size_t)params... };
 			const size_t n = sizeof...(Params);
 			m_layers.resize(n);
 			for (size_t i = 0; i < n; i++)
@@ -127,8 +134,17 @@ namespace sa
 		{
 			initialized = false;
 		}
-		void train(std::vector<T> &values, T expected)
+		void train(std::vector<T> &values, std::vector<T> &expected)
 		{
+			if(values.size() != m_layers[0].size())
+			{
+				std::runtime_error("More/less values than input-nodes");
+			}
+			if(expected.size() != m_layers.back().size())
+			{
+				std::runtime_error("More/less values than exit-nodes");
+			}
+			//Feed-forward
 			for (size_t i = 0; i < values.size(); i++)
 			{
 				m_layers[0][i] = values[i];
@@ -140,10 +156,33 @@ namespace sa
 					m_layers[i][j]->feedForward(m_layers[i - 1]);
 				}
 			}
-			std::vector<T> m_values;
+			//Outvalues
+			std::vector<T> m_outvalues;
 			for (auto &outn : m_layers.back())
 			{
-				m_values.push_back(outn->output);
+				m_outvalues.push_back(outn->output);
+			}
+			//Calculate errors
+			std::vector<T> m_errors;
+			for(unsigned i = 0; i < m_outvalues; i++)
+			{
+				m_errors.push_back(m_outvalues[i] - expected[i]);
+			}
+			//Back-prop
+			for(auto &neuron : m_layers.back())
+			{
+				for(size_t c = 0; c < neuron->m_weights.size(); c++)
+				{
+					neuron->m_weights[c] += neuron->lc * m_errors[c];
+				}
+			}
+			int numHiddenLayers = m_layers.size() - 2;
+			for(size_t i = m_layers.size() - 1; i > 0; i--)
+			{
+				for(auto &neuron : m_layers[i])
+				{
+					
+				}
 			}
 		}
 		template <class... Params>
