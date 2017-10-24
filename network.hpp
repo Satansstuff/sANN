@@ -145,10 +145,27 @@ namespace sa
 				std::runtime_error("More/less values than exit-nodes");
 			}
 			//FeedForward
+			for (size_t i = 0; i < m_layers[0].size(); i++)
+			{
+				m_layers[0][i]->output = values[i];
+			}
+			for (size_t i = 1; i < m_layers.size(); i++)
+			{
+				for (size_t j = 0; j < m_layers[i].size(); j++)
+				{
+					m_layers[i][j]->feedForward(m_layers[i - 1]);
+				}
+			}
+			std::vector<T> outValues;
+			for(size_t i = 0; i < m_layers.back().size(); i++)
+			{
+				outValues[i] = m_layers.back()[i]->output;
+			}
+			//calculate-errors?
 			//BackPropogate
 			//Update Weights
 			//????
-			//Profit
+
 		}
 		template <class... Params>
 		void feedForward(Params... params)
