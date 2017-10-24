@@ -144,46 +144,11 @@ namespace sa
 			{
 				std::runtime_error("More/less values than exit-nodes");
 			}
-			//Feed-forward
-			for (size_t i = 0; i < values.size(); i++)
-			{
-				m_layers[0][i] = values[i];
-			}
-			for (size_t i = 1; i < m_layers.size(); i++)
-			{
-				for (size_t j = 0; j < m_layers[i].size(); j++)
-				{
-					m_layers[i][j]->feedForward(m_layers[i - 1]);
-				}
-			}
-			//Outvalues
-			std::vector<T> m_outvalues;
-			for (auto &outn : m_layers.back())
-			{
-				m_outvalues.push_back(outn->output);
-			}
-			//Calculate errors
-			std::vector<T> m_errors;
-			for(unsigned i = 0; i < m_outvalues; i++)
-			{
-				m_errors.push_back(m_outvalues[i] - expected[i]);
-			}
-			//Back-prop
-			for(auto &neuron : m_layers.back())
-			{
-				for(size_t c = 0; c < neuron->m_weights.size(); c++)
-				{
-					neuron->m_weights[c] += neuron->lc * m_errors[c];
-				}
-			}
-			int numHiddenLayers = m_layers.size() - 2;
-			for(size_t i = m_layers.size() - 1; i > 0; i--)
-			{
-				for(auto &neuron : m_layers[i])
-				{
-					
-				}
-			}
+			//FeedForward
+			//BackPropogate
+			//Update Weights
+			//????
+			//Profit
 		}
 		template <class... Params>
 		void feedForward(Params... params)
