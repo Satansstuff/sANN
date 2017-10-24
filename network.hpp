@@ -27,14 +27,17 @@ namespace sa
 	{
 		return 1.0 / (1.0 + exp(-f));
 	}
+	template <typename T>
+	static T dfsigm(T f)
+	{
+		return f * (1 - f);
+	}
 	struct neuron
 	{
 		std::vector<double> m_weights;
 		std::vector<double> m_deltaWeights;
 		double bias = 1;
 		double output = 0;
-		double gain;
-		double wgain;
 		double lc;
 		neuron(size_t num_weights, double learning = 0.01)
 		{
@@ -156,11 +159,13 @@ namespace sa
 					m_layers[i][j]->feedForward(m_layers[i - 1]);
 				}
 			}
-			std::vector<T> outValues;
+			std::vector<T> errVals;
 			for(size_t i = 0; i < m_layers.back().size(); i++)
 			{
-				outValues[i] = m_layers.back()[i]->output;
+				errVals.push_back(expected[i] - m_layers.back()[i]->output);
+				std::cout << "Error:" <<errVals.back() << std::endl;
 			}
+
 			//calculate-errors?
 			//BackPropogate
 			//Update Weights
