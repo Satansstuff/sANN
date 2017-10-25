@@ -4,21 +4,30 @@
 */
 #pragma once
 #include <random>
+#include <exception>
 #include <string>
 #include <fstream>
-#include <exception>
+#include <streambuf>
 #include <array>
 #include <iostream>
 #include <cmath>
 #include <functional>
+#include <sstream>
 #include <ctime>
 #include <memory>
-/*
-Varadic templates
-Gogo psykos
-Git aids
-Otr�nad aids, typ som jag.
-*/
+#include <vector>
+
+std::vector<std::string> split(std::string target, char delim)
+{
+	std::vector<std::string> v;
+	std::istringstream ss(target);
+	std::string line;
+	while (std::getline(ss, line, delim))
+	{
+		v.push_back(line);
+	}
+	return v;
+}
 namespace sa
 {
 	struct neuron;
@@ -35,7 +44,6 @@ namespace sa
 	struct neuron
 	{
 		std::vector<double> m_weights;
-		std::vector<double> m_deltaWeights;
 		double bias = 1;
 		double output = 0;
 		double delta = 0;
@@ -45,7 +53,7 @@ namespace sa
 			m_weights.reserve(num_weights);
 			std::random_device rd;
 			std::mt19937 gen(rd());
-			std::uniform_real_distribution<double> dis(-2.4 / num_weights, 2.4 / num_weights);
+			std::uniform_real_distribution<double> dis(-3, 3);
 			for (size_t i = 0; i < num_weights; i++)
 			{
 				m_weights.push_back(dis(gen));
@@ -59,20 +67,29 @@ namespace sa
 			for (unsigned i = 0; i < prevlayer.size(); i++)
 			{
 				m_weights[i] += lc * prevlayer[i]->output * delta;
-				lc += 0.0001;
 			}
 		}
 		void feedForward(layer &prevLayer)
 		{
 			double sum = bias * 1;
-			for (auto neuron : prevLayer)
+			for (unsigned i = 0; i < prevLayer.size(); i++)
 			{
-				for (unsigned i = 0; i < m_weights.size(); i++)
-				{
-					sum += neuron->output * m_weights[i];
-				}
+				sum += prevLayer[i]->output * m_weights[i];
 			}
 			output = fsigm<double>(sum);
+		}
+		friend std::ostream& operator<<(std::ostream& os, const neuron& n)
+		{
+			os << n.bias << ":" << n.delta << ":" << n.lc << ":" << n.output << " ";
+			for (unsigned i = 0; i < n.m_weights.size(); i++)
+			{
+				os << n.m_weights[i];
+				if (i != n.m_weights.size() - 1)
+				{
+					os << ":";
+				}
+			}
+			return os;
 		}
 	};
 	template <typename T>
@@ -84,11 +101,73 @@ namespace sa
 	public:
 		void saveToFile(const std::string &f)
 		{
-
+			std::ofstream file(f);
+			//Number of layers in total
+			file << m_layers.size() << std::endl;
+			//Write input-neurons
+			for (unsigned i = 0; i < m_layers[0].size(); i++)
+			{
+				file << *m_layers[0][i].get();
+				if (i != m_layers[0].size() - 1)
+				{
+					file << "|";
+				}
+			}
+			file << std::endl;
+			size_t numHidden = m_layers.size() - 2;
+			//Write Hidden-layers
+			for (unsigned i = 1; i <= numHidden; i++)
+			{
+				for (unsigned j = 0; j < m_layers[i].size(); j++)
+				{
+					file << *m_layers[i][j].get();
+					if (j != m_layers[0].size() - 1)
+					{
+						file << "|";
+					}
+				}
+				file << std::endl;
+			}
+			//Write Output-Layer
+			for (unsigned i = 0; i < m_layers.back().size(); i++)
+			{
+				file << *m_layers.back()[i].get();
+				if (i != m_layers[0].size() - 1)
+				{
+					file << "|";
+				}
+			}
+			
 		}
 		void loadFromFile(const std::string &f)
 		{
+			std::ifstream t(f);
+			std::string str;
 
+			t.seekg(0, std::ios::end);
+			str.reserve((unsigned)t.tellg());
+			t.seekg(0, std::ios::beg);
+
+			str.assign((std::istreambuf_iterator<char>(t)),
+				std::istreambuf_iterator<char>());
+			
+			auto layers = split(str, '\n');
+
+			for (unsigned i = 1; i < layers.size(); i++)
+			{
+				std::string layer = layers[i];
+				std::vector<std::string> neurons = split(layer, '|');
+				for (auto &n : neurons)
+				{
+					neuron neu;
+					neu.m_weights.resize(0);
+					auto weights = split(n, ' ');
+					for (auto &w : weights)
+					{
+						std::cout << w << std::endl;
+					}
+				}
+			}
 		}
 		T operator[](size_t i)
 		{
@@ -128,6 +207,11 @@ namespace sa
 		net()
 		{
 			initialized = false;
+		}
+		net(const std::string &str)
+		{
+			initialized = false;
+
 		}
 		void train(std::vector<T> &values, std::vector<T> &expected)
 		{
