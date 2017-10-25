@@ -13,7 +13,7 @@
 Varadic templates
 Gogo psykos
 Git aids
-Otränad aids, typ som jag.
+Otrï¿½nad aids, typ som jag.
 */
 namespace sa
 {
@@ -25,7 +25,14 @@ namespace sa
 	template <typename T>
 	static T fsigm(T f)
 	{
-		return 1.0 / (1.0 + exp(-f));
+		T ret = 1.0 / (1.0 + std::exp(-f));
+		return ret;
+	}
+	inline static int32_t clampOutputValue(double x)
+	{
+		if (x < 0.1) return 0;
+		else if (x > 0.9) return 1;
+		else return -1;
 	}
 	template <typename T>
 	static T dfsigm(T f)
@@ -63,13 +70,6 @@ namespace sa
 			}
 			output = fsigm<double>(sum);
 		}
-		void evolve(double mutRate)
-		{
-			for (auto &w : m_weights)
-			{
-				w *= mutRate * lc;
-			}
-		}
 	};
 	template <typename T>
 	class net
@@ -86,26 +86,14 @@ namespace sa
 		{
 
 		}
-		void evolve()
-		{
-			std::random_device rd;
-			std::mt19937 gen(rd());
-			std::uniform_real_distribution<T> dis(-1, 1);
-			for (size_t i = 1; i < m_layers.size(); i++)
-			{
-				for (size_t j = 0; j < m_layers[i].size(); j++)
-				{
-					m_layers[i][j]->evolve(dis(gen));
-				}
-			}
-		}
-		double operator[](size_t i)
+		T operator[](size_t i)
 		{
 			if (i > m_layers.back().size() || i < 0)
 			{
 				std::runtime_error("No outputnode found");
 			}
-			return m_layers.back()[i]->output;
+			T output = m_layers.back()[i]->output;
+			return output;
 		}
 		template <class... Params>
 		void construct(Params... params)
@@ -139,15 +127,33 @@ namespace sa
 		}
 		void train(std::vector<T> &values, std::vector<T> &expected)
 		{
-			if(values.size() != m_layers[0].size())
+			layer results = this->feedForward(values);
+			std::vector<T> resultValues;
+			std::vector<T> outErrors;
+			outErrors.resize(expected.size());
+			for (auto &result : results)
 			{
-				std::runtime_error("More/less values than input-nodes");
+				resultValues.push_back(result->output);
 			}
-			if(expected.size() != m_layers.back().size())
+			if (resultValues.size() != expected.size())
 			{
-				std::runtime_error("More/less values than exit-nodes");
+				std::runtime_error("Length-mismatch");
 			}
-			//FeedForward
+			//Output-layer
+			for (size_t i = 0; i < expected.size(); i++)
+			{
+				double error = expected[i] - resultValues[i];
+				for (auto &neuron : results)
+				{
+					for (unsigned j = 0; j < neuron->m_weights.size(); j++)
+					{
+						neuron->m_weights[j] += 0.1 * error * dfsigm(neuron->output);
+					}
+				}
+			}
+		}
+		layer feedForward(std::vector<T> &values) &
+		{ 
 			for (size_t i = 0; i < m_layers[0].size(); i++)
 			{
 				m_layers[0][i]->output = values[i];
@@ -159,18 +165,7 @@ namespace sa
 					m_layers[i][j]->feedForward(m_layers[i - 1]);
 				}
 			}
-			std::vector<T> errVals;
-			for(size_t i = 0; i < m_layers.back().size(); i++)
-			{
-				errVals.push_back(expected[i] - m_layers.back()[i]->output);
-				std::cout << "Error:" <<errVals.back() << std::endl;
-			}
-
-			//calculate-errors?
-			//BackPropogate
-			//Update Weights
-			//????
-
+			return m_layers.back();
 		}
 		template <class... Params>
 		void feedForward(Params... params)
@@ -196,137 +191,6 @@ namespace sa
 					m_layers[i][j]->feedForward(m_layers[i - 1]);
 				}
 			}
-		}
-
-	};
-
-	/*
-	Perceptron är basically ett network med bara en neuron
-	Supervised learning
-	Genetic learning?
-	*/
-	template <typename T, int numVals>
-	class Perceptron
-	{
-	private:
-		unsigned counter = 0;
-		T feedValue;
-		T InternalfeedForward(std::vector<T> values)
-		{
-			T sum = 1;
-			for (unsigned i = 0; i < m_weights.size(); i++)
-			{
-				sum += m_weights[i] * values[i];
-			}
-			return fsigm(sum);
-		}
-	protected:
-		unsigned numberOfVals;
-		double lrate;
-		std::vector<T> m_weights;
-	public:
-		Perceptron(const std::string &file, const double _lrate = 0.02)
-		{
-			numberOfVals = numVals;
-			std::ifstream f(file);
-			if (!f)
-			{
-				std::runtime_error("Failed to load-file \n");
-			}
-			std::string line;
-			while (std::getline(f, line))
-			{
-				m_weights.push_back(atof(line.c_str()));
-			}
-			f.close();
-			lrate = _lrate;
-		}
-		void loadFromFile(const std::string &file)
-		{
-			std::ifstream f(file);
-			if (!f)
-			{
-				std::runtime_error("Failed to load-file \n");
-			}
-			std::string line;
-			while (std::getline(f, line))
-			{
-				m_weights.push_back(atof(line.c_str()));
-			}
-			f.close();
-		}
-		void saveToFile(const std::string &file)
-		{
-			std::ofstream f(file, std::ofstream::out);
-			if (!f)
-			{
-				std::runtime_error("Failed to Open-file");
-			}
-			for (size_t i = 0; i < m_weights.size(); i++)
-			{
-				f << std::to_string(m_weights[i]) << std::endl;
-			}
-			f.close();
-		}
-		Perceptron(const double _lrate = 0.02)
-		{
-			numberOfVals = numVals;
-			srand((unsigned)time(NULL));
-			lrate = _lrate;
-			m_weights.reserve(numVals);
-			std::random_device rd;
-			std::mt19937 gen(rd());
-			std::uniform_real_distribution<T> dis(-2.4 / numVals, 2.4 / numVals);
-			for (size_t i = 0; i < numVals; i++)
-			{
-				m_weights.push_back(dis(gen));
-			}
-		}
-		Perceptron(std::vector<T> weights, const double _lrate = 0.1)
-		{
-			numberOfVals = numVals;
-			std::random_device rd;
-			std::mt19937 gen(rd());
-			std::uniform_real_distribution<T> dis(-1, 1);
-			for (size_t i = 0; i < m_weights.size(); i++)
-			{
-				m_weights[i] += weights[i] * lrate * dis(gen); //Mutera
-			}
-			lrate = _lrate;
-		}
-		void train(std::vector<T> values, T corr)
-		{
-			T correct = corr;
-			T guess = InternalfeedForward(values);
-			T error = correct - guess;
-			for (unsigned j = 0; j < m_weights.size(); j++)
-			{
-				m_weights[j] += lrate * error * values[j];
-			}
-		}
-		T feedForward(T first)
-		{
-			if (counter < m_weights.size())
-			{
-				return feedForward(first * m_weights[counter++]);
-			}
-			else
-			{
-				return feedValue;
-			}
-		}
-		template <typename... Args>
-		T feedForward(T first, Args... A)
-		{
-			static const std::size_t value = sizeof...(Args);
-			static_assert(value + 1 <= numVals, "Too many values");
-			feedValue = first * m_weights[counter] + 1;
-			counter = 1;
-			feedValue = feedForward(A...);
-			counter = 0;
-			T sig = net<T>::fsigm(feedValue);
-			feedValue = 0;
-			return sig;
 		}
 	};
 }
