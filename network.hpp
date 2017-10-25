@@ -1,3 +1,7 @@
+/*
+	Created by Satan
+	Give respect where respect is due, without me; There would be no you.
+*/
 #pragma once
 #include <random>
 #include <string>
@@ -28,24 +32,14 @@ namespace sa
 		T ret = 1.0 / (1.0 + std::exp(-f));
 		return ret;
 	}
-	inline static int32_t clampOutputValue(double x)
-	{
-		if (x < 0.1) return 0;
-		else if (x > 0.9) return 1;
-		else return -1;
-	}
-	template <typename T>
-	static T dfsigm(T f)
-	{
-		return f * (1 - f);
-	}
 	struct neuron
 	{
 		std::vector<double> m_weights;
 		std::vector<double> m_deltaWeights;
 		double bias = 1;
 		double output = 0;
-		double lc;
+		double delta = 0;
+		double lc = 0.01;
 		neuron(size_t num_weights, double learning = 0.01)
 		{
 			m_weights.reserve(num_weights);
@@ -56,16 +50,26 @@ namespace sa
 			{
 				m_weights.push_back(dis(gen));
 			}
+			bias = dis(gen);
 			lc = learning;
+		}
+		void updateFreeParams(layer &prevlayer)
+		{
+			bias = bias + lc * 1 * delta;
+			for (unsigned i = 0; i < prevlayer.size(); i++)
+			{
+				m_weights[i] += lc * prevlayer[i]->output * delta;
+				lc += 0.0001;
+			}
 		}
 		void feedForward(layer &prevLayer)
 		{
-			double sum = bias;
+			double sum = bias * 1;
 			for (auto neuron : prevLayer)
 			{
-				for (auto &weight : neuron->m_weights)
+				for (unsigned i = 0; i < m_weights.size(); i++)
 				{
-					sum += neuron->output * weight;
+					sum += neuron->output * m_weights[i];
 				}
 			}
 			output = fsigm<double>(sum);
@@ -128,9 +132,8 @@ namespace sa
 		void train(std::vector<T> &values, std::vector<T> &expected)
 		{
 			layer results = this->feedForward(values);
+			double outError = 0;
 			std::vector<T> resultValues;
-			std::vector<T> outErrors;
-			outErrors.resize(expected.size());
 			for (auto &result : results)
 			{
 				resultValues.push_back(result->output);
@@ -147,8 +150,32 @@ namespace sa
 				{
 					for (unsigned j = 0; j < neuron->m_weights.size(); j++)
 					{
-						neuron->m_weights[j] += 0.1 * error * dfsigm(neuron->output);
+						neuron->delta = neuron->output * (1 - neuron->output) * error;
 					}
+				}
+			}
+			//Hidden-Layers
+			size_t numHiddenLayers = m_layers.size() - 2;
+			for (size_t i = numHiddenLayers; i > 0; i--)
+			{
+				double error = 0.0;
+				layer currLayer = m_layers[i];
+				layer topLayer = m_layers[i + 1];
+				for (auto &n : currLayer)
+				{
+					for (unsigned j = 0; j < topLayer.size(); j++)
+					{
+						error += topLayer[j]->delta * n->m_weights[j];
+					}
+					n->delta = n->output * (1 - n->output) * error;
+				}
+			}
+			//Update Weights
+			for (unsigned i = m_layers.size() - 1; i > 0; i--)
+			{
+				for (auto &n : m_layers[i])
+				{
+					n->updateFreeParams(m_layers[i - 1]);
 				}
 			}
 		}
