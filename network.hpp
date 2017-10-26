@@ -61,6 +61,10 @@ namespace sa
 			bias = dis(gen);
 			lc = learning;
 		}
+		neuron()
+		{
+
+		}
 		void updateFreeParams(layer &prevlayer)
 		{
 			bias = bias + lc * 1 * delta;
@@ -80,16 +84,24 @@ namespace sa
 		}
 		friend std::ostream& operator<<(std::ostream& os, const neuron& n)
 		{
-			os << n.bias << ":" << n.delta << ":" << n.lc << ":" << n.output << " ";
+			os << n.bias << " " << n.delta << " " << n.lc << " " << n.output << " " << n.m_weights.size() << " ";
 			for (unsigned i = 0; i < n.m_weights.size(); i++)
 			{
 				os << n.m_weights[i];
-				if (i != n.m_weights.size() - 1)
-				{
-					os << ":";
-				}
 			}
 			return os;
+		}
+		friend std::istream& operator>> (std::istream& is, neuron& n)
+		{
+			std::string crap;
+			unsigned numWeights = 1;
+			is >> n.bias >> n.delta >> n.lc >> n.output >> numWeights;
+			n.m_weights.resize(numWeights);
+			for (unsigned i = 0; i < n.m_weights.size(); i++)
+			{
+				is >> n.m_weights[i];
+			}
+			return is;
 		}
 	};
 	template <typename T>
@@ -105,37 +117,28 @@ namespace sa
 			//Number of layers in total
 			file << m_layers.size() << std::endl;
 			//Write input-neurons
+			file << m_layers[0].size() << ":";
 			for (unsigned i = 0; i < m_layers[0].size(); i++)
 			{
 				file << *m_layers[0][i].get();
-				if (i != m_layers[0].size() - 1)
-				{
-					file << "|";
-				}
 			}
 			file << std::endl;
 			size_t numHidden = m_layers.size() - 2;
 			//Write Hidden-layers
 			for (unsigned i = 1; i <= numHidden; i++)
 			{
+				file << m_layers[i].size() << ":";
 				for (unsigned j = 0; j < m_layers[i].size(); j++)
 				{
 					file << *m_layers[i][j].get();
-					if (j != m_layers[0].size() - 1)
-					{
-						file << "|";
-					}
 				}
 				file << std::endl;
 			}
 			//Write Output-Layer
+			file << m_layers.back().size() << ":";
 			for (unsigned i = 0; i < m_layers.back().size(); i++)
 			{
 				file << *m_layers.back()[i].get();
-				if (i != m_layers[0].size() - 1)
-				{
-					file << "|";
-				}
 			}
 			
 		}
@@ -152,20 +155,15 @@ namespace sa
 				std::istreambuf_iterator<char>());
 			
 			auto layers = split(str, '\n');
-
-			for (unsigned i = 1; i < layers.size(); i++)
+			m_layers.resize(stoi(layers[0]));
+			layers.erase(layers.begin());
+			for (unsigned i = 0; i < m_layers.size(); i++)
 			{
-				std::string layer = layers[i];
-				std::vector<std::string> neurons = split(layer, '|');
-				for (auto &n : neurons)
+				std::istringstream is(layers[i]);
+				neuron buffer;
+				while (is >> buffer)
 				{
-					neuron neu;
-					neu.m_weights.resize(0);
-					auto weights = split(n, ' ');
-					for (auto &w : weights)
-					{
-						std::cout << w << std::endl;
-					}
+					m_layers[i].push_back(std::make_shared<neuron>(buffer));
 				}
 			}
 		}
