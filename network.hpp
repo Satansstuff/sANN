@@ -12,11 +12,12 @@
 #include <iostream>
 #include <cmath>
 #include <functional>
+#include <map>
 #include <sstream>
 #include <ctime>
 #include <memory>
 #include <vector>
-
+#include <thread>
 std::vector<std::string> split(std::string target, char delim)
 {
 	std::vector<std::string> v;
@@ -60,6 +61,13 @@ namespace sa
 			}
 			bias = dis(gen);
 			lc = learning;
+		}
+		void evolve(double rate)
+		{
+			for(auto &w : m_weights)
+			{
+				w += rate * lc;
+			}
 		}
 		neuron()
 		{
@@ -111,6 +119,21 @@ namespace sa
 		bool initialized;
 		std::vector<layer> m_layers;
 	public:
+		//Asexual mutation.
+		net spawn(const double mutrate)
+		{
+			std::default_random_engine generator;
+			std::uniform_int_distribution<int> distribution(-1,1);
+			auto newNet(*this);
+			for(auto &layer : m_layers)
+			{
+				for(auto &neuron : layer)
+				{
+					neuron->evolve(mutrate * distribution(generator));
+				}
+			}
+			return newNet;
+		}
 		void saveToFile(const std::string &f)
 		{
 			std::ofstream file(f);
@@ -209,7 +232,6 @@ namespace sa
 		net(const std::string &str)
 		{
 			initialized = false;
-
 		}
 		void train(std::vector<T> &values, std::vector<T> &expected)
 		{
@@ -300,6 +322,62 @@ namespace sa
 					m_layers[i][j]->feedForward(m_layers[i - 1]);
 				}
 			}
+		}
+	};
+	template <typename T>
+	class batch
+	{
+	private:
+		bool initialized = false;
+		std::vector<net<T>> m_nets;
+	public:
+		batch(size_t batchSize)
+		{
+			m_nets.resize(batchSize);
+		}
+		template <class... Params>
+		void construct(Params... p)
+		{
+			for(auto &net : m_nets)
+			{
+				net.construct(p...);
+			}
+			initialized = true;
+		}
+		void trainBatch(std::vector<T> &values, std::vector<T> &expected)
+		{
+			if(!initialized)
+				std::runtime_error("Batch not initialized!");
+			std::vector<std::thread> m_threads;
+			for(auto &n : m_nets)
+			{
+			    n.train(values, expected);
+			}
+		}
+		net<T> getMostFitNet(std::vector<T> &values, std::vector<T> &expected)
+		{
+			std::vector<T> errorSums;
+			errorSums.resize(m_nets.size());
+			for(unsigned i = 0; i < m_nets.size(); i++)
+			{
+				layer l = m_nets[i].feedForward(values,expected);
+				for(auto &OutNeuron : l)
+				{
+					auto error = abs(OutNeuron->delta / (OutNeuron->output * (1 - OutNeuron->output)));
+					errorSums[i] += error;
+				}
+			}
+			unsigned index = 0;
+			T smallest = INFINITY;
+			for(unsigned i = 0; i < errorSums.size(); i++)
+			{
+				if(errorSums[i] < smallest)
+				{
+					smallest = errorSums[i];
+					index = i;
+				}
+			}
+			return m_nets[index];
 		}
 	};
 }
