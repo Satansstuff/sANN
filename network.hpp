@@ -1,6 +1,16 @@
 /*
 	Created by Satan
 	Give respect where respect is due, without me; There would be no you.
+	Feel free to use this wherever you seem fit, but do give me a mention somewhere.
+
+	Also if this becomes skynet, you owe me a beer.
+*/
+
+
+/*
+TODO inb4 push:
+	Deepcopy på neurons och nets
+	likamed operatorn likaså
 */
 #pragma once
 #include <random>
@@ -71,7 +81,7 @@ namespace sa
 		}
 		neuron()
 		{
-
+			//SHOULD I EVEN EXIST?
 		}
 		void updateFreeParams(layer &prevlayer)
 		{
@@ -119,12 +129,41 @@ namespace sa
 		bool initialized;
 		std::vector<layer> m_layers;
 	public:
+		net(const net<T> &other)
+		{
+			std::vector<layer> layers = other.m_layers;
+			for(size_t i = 0; i < layers.size(); i++)
+			{
+				layer newLayer;
+				for(auto &n : layers[i])
+				{
+					neuron newNeron(*n);
+					newLayer.push_back(std::make_shared<neuron>(newNeron));
+				}
+				m_layers[i] = newLayer;
+			}
+		}
+		net operator=(const net &other)
+		{
+			std::vector<layer> layers = other.m_layers;
+			for(size_t i = 0; i < layers.size(); i++)
+			{
+				layer newLayer;
+				for(auto &n : layers[i])
+				{
+					neuron newNeron(*n);
+					newLayer.push_back(std::make_shared<neuron>(newNeron));
+				}
+				m_layers[i] = newLayer;
+			}
+			return *this;
+		}
 		//Asexual mutation.
-		net spawn(const double mutrate)
+		//
+		void mutate(const double mutrate)
 		{
 			std::default_random_engine generator;
 			std::uniform_int_distribution<int> distribution(-1,1);
-			auto newNet(*this);
 			for(auto &layer : m_layers)
 			{
 				for(auto &neuron : layer)
@@ -132,7 +171,6 @@ namespace sa
 					neuron->evolve(mutrate * distribution(generator));
 				}
 			}
-			return newNet;
 		}
 		void saveToFile(const std::string &f)
 		{
@@ -189,6 +227,10 @@ namespace sa
 					m_layers[i].push_back(std::make_shared<neuron>(buffer));
 				}
 			}
+		}
+		layer back() &
+		{
+			return m_layers.back();
 		}
 		T operator[](size_t i)
 		{
@@ -335,6 +377,30 @@ namespace sa
 		{
 			m_nets.resize(batchSize);
 		}
+		size_t size()
+		{
+			return m_nets.size();
+		}
+		batch mutate( size_t batchSize = 0, double mutateRate = 0.02)
+		{
+			if(batchSize == 0)
+			{
+				batchSize = this->size();
+			}
+			if(this->size() < 1)
+			{
+				std::runtime_error("Batch empty");
+			}
+			batch newB(*this);
+			newB.m_nets.resize(batchSize);
+			net<T> bestNet = getMostFitNet();
+			for(size_t i = 0; i < batchSize; i++)
+			{
+				newB.m_nets[i] = net<T>(bestNet);
+				newB.m_nets[i].mutate(mutateRate);
+			}
+			return newB;
+		}
 		template <class... Params>
 		void construct(Params... p)
 		{
@@ -354,13 +420,13 @@ namespace sa
 			    n.train(values, expected);
 			}
 		}
-		net<T> getMostFitNet(std::vector<T> &values, std::vector<T> &expected)
+		net<T> getMostFitNet()
 		{
 			std::vector<T> errorSums;
 			errorSums.resize(m_nets.size());
 			for(unsigned i = 0; i < m_nets.size(); i++)
 			{
-				layer l = m_nets[i].feedForward(values,expected);
+				layer l = m_nets[i].back();
 				for(auto &OutNeuron : l)
 				{
 					auto error = abs(OutNeuron->delta / (OutNeuron->output * (1 - OutNeuron->output)));
