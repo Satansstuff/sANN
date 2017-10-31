@@ -1,16 +1,13 @@
 /*
-	Created by Satan
-	Give respect where respect is due, without me; There would be no you.
-	Feel free to use this wherever you seem fit, but do give me a mention somewhere.
-
-	Also if this becomes skynet, you owe me a beer.
+Created by Satan
+Give respect where respect is due, without me; There would be no you.
+Feel free to use this wherever you seem fit, but do give me a mention somewhere.
+Also if this becomes skynet, you owe me a beer.
 */
 
 
 /*
-TODO inb4 push:
-	Deepcopy på neurons och nets
-	likamed operatorn likaså
+	Multi-threading would be nice...
 */
 #pragma once
 #include <random>
@@ -28,6 +25,8 @@ TODO inb4 push:
 #include <memory>
 #include <vector>
 #include <thread>
+#include <future>
+
 std::vector<std::string> split(std::string target, char delim)
 {
 	std::vector<std::string> v;
@@ -74,7 +73,7 @@ namespace sa
 		}
 		void evolve(double rate)
 		{
-			for(auto &w : m_weights)
+			for (auto &w : m_weights)
 			{
 				w += rate * lc;
 			}
@@ -86,7 +85,7 @@ namespace sa
 		void updateFreeParams(layer &prevlayer)
 		{
 			bias = bias + lc * 1 * delta;
-			for (unsigned i = 0; i < prevlayer.size(); i++)
+			for (size_t i = 0; i < prevlayer.size(); i++)
 			{
 				m_weights[i] += lc * prevlayer[i]->output * delta;
 			}
@@ -94,7 +93,7 @@ namespace sa
 		void feedForward(layer &prevLayer)
 		{
 			double sum = bias * 1;
-			for (unsigned i = 0; i < prevLayer.size(); i++)
+			for (size_t i = 0; i < prevLayer.size(); i++)
 			{
 				sum += prevLayer[i]->output * m_weights[i];
 			}
@@ -103,7 +102,7 @@ namespace sa
 		friend std::ostream& operator<<(std::ostream& os, const neuron& n)
 		{
 			os << n.bias << " " << n.delta << " " << n.lc << " " << n.output << " " << n.m_weights.size() << " ";
-			for (unsigned i = 0; i < n.m_weights.size(); i++)
+			for (size_t i = 0; i < n.m_weights.size(); i++)
 			{
 				os << n.m_weights[i];
 			}
@@ -112,10 +111,10 @@ namespace sa
 		friend std::istream& operator>> (std::istream& is, neuron& n)
 		{
 			std::string crap;
-			unsigned numWeights = 1;
+			size_t numWeights = 1;
 			is >> n.bias >> n.delta >> n.lc >> n.output >> numWeights;
 			n.m_weights.resize(numWeights);
-			for (unsigned i = 0; i < n.m_weights.size(); i++)
+			for (size_t i = 0; i < n.m_weights.size(); i++)
 			{
 				is >> n.m_weights[i];
 			}
@@ -132,10 +131,11 @@ namespace sa
 		net(const net<T> &other)
 		{
 			std::vector<layer> layers = other.m_layers;
-			for(size_t i = 0; i < layers.size(); i++)
+			m_layers.resize(layers.size());
+			for (size_t i = 0; i < layers.size(); i++)
 			{
 				layer newLayer;
-				for(auto &n : layers[i])
+				for (auto &n : layers[i])
 				{
 					neuron newNeron(*n);
 					newLayer.push_back(std::make_shared<neuron>(newNeron));
@@ -143,13 +143,24 @@ namespace sa
 				m_layers[i] = newLayer;
 			}
 		}
+		T getAvgError()
+		{
+			T errorSum = 0;
+			layer l = m_layers.back();
+			for (auto &OutNeuron : l)
+			{
+				auto error = abs(OutNeuron->delta / (OutNeuron->output * (1 - OutNeuron->output)));
+				errorSum += error;
+			}
+			return errorSum / m_layers.back().size();
+		}
 		net operator=(const net &other)
 		{
 			std::vector<layer> layers = other.m_layers;
-			for(size_t i = 0; i < layers.size(); i++)
+			for (size_t i = 0; i < layers.size(); i++)
 			{
 				layer newLayer;
-				for(auto &n : layers[i])
+				for (auto &n : layers[i])
 				{
 					neuron newNeron(*n);
 					newLayer.push_back(std::make_shared<neuron>(newNeron));
@@ -158,15 +169,13 @@ namespace sa
 			}
 			return *this;
 		}
-		//Asexual mutation.
-		//
 		void mutate(const double mutrate)
 		{
 			std::default_random_engine generator;
-			std::uniform_int_distribution<int> distribution(-1,1);
-			for(auto &layer : m_layers)
+			std::uniform_int_distribution<int> distribution(-1, 1);
+			for (auto &layer : m_layers)
 			{
-				for(auto &neuron : layer)
+				for (auto &neuron : layer)
 				{
 					neuron->evolve(mutrate * distribution(generator));
 				}
@@ -179,17 +188,17 @@ namespace sa
 			file << m_layers.size() << std::endl;
 			//Write input-neurons
 			file << m_layers[0].size() << ":";
-			for (unsigned i = 0; i < m_layers[0].size(); i++)
+			for (size_t i = 0; i < m_layers[0].size(); i++)
 			{
 				file << *m_layers[0][i].get();
 			}
 			file << std::endl;
 			size_t numHidden = m_layers.size() - 2;
 			//Write Hidden-layers
-			for (unsigned i = 1; i <= numHidden; i++)
+			for (size_t i = 1; i <= numHidden; i++)
 			{
 				file << m_layers[i].size() << ":";
-				for (unsigned j = 0; j < m_layers[i].size(); j++)
+				for (size_t j = 0; j < m_layers[i].size(); j++)
 				{
 					file << *m_layers[i][j].get();
 				}
@@ -197,11 +206,11 @@ namespace sa
 			}
 			//Write Output-Layer
 			file << m_layers.back().size() << ":";
-			for (unsigned i = 0; i < m_layers.back().size(); i++)
+			for (size_t i = 0; i < m_layers.back().size(); i++)
 			{
 				file << *m_layers.back()[i].get();
 			}
-			
+
 		}
 		void loadFromFile(const std::string &f)
 		{
@@ -209,16 +218,16 @@ namespace sa
 			std::string str;
 
 			t.seekg(0, std::ios::end);
-			str.reserve((unsigned)t.tellg());
+			str.reserve((size_t)t.tellg());
 			t.seekg(0, std::ios::beg);
 
 			str.assign((std::istreambuf_iterator<char>(t)),
 				std::istreambuf_iterator<char>());
-			
+
 			auto layers = split(str, '\n');
 			m_layers.resize(stoi(layers[0]));
 			layers.erase(layers.begin());
-			for (unsigned i = 0; i < m_layers.size(); i++)
+			for (size_t i = 0; i < m_layers.size(); i++)
 			{
 				std::istringstream is(layers[i]);
 				neuron buffer;
@@ -294,7 +303,7 @@ namespace sa
 				double error = expected[i] - resultValues[i];
 				for (auto &neuron : results)
 				{
-					for (unsigned j = 0; j < neuron->m_weights.size(); j++)
+					for (size_t j = 0; j < neuron->m_weights.size(); j++)
 					{
 						neuron->delta = neuron->output * (1 - neuron->output) * error;
 					}
@@ -309,7 +318,7 @@ namespace sa
 				layer topLayer = m_layers[i + 1];
 				for (auto &n : currLayer)
 				{
-					for (unsigned j = 0; j < topLayer.size(); j++)
+					for (size_t j = 0; j < topLayer.size(); j++)
 					{
 						error += topLayer[j]->delta * n->m_weights[j];
 					}
@@ -317,7 +326,7 @@ namespace sa
 				}
 			}
 			//Update Weights
-			for (unsigned i = m_layers.size() - 1; i > 0; i--)
+			for (size_t i = m_layers.size() - 1; i > 0; i--)
 			{
 				for (auto &n : m_layers[i])
 				{
@@ -326,7 +335,7 @@ namespace sa
 			}
 		}
 		layer feedForward(std::vector<T> &values) &
-		{ 
+		{
 			for (size_t i = 0; i < m_layers[0].size(); i++)
 			{
 				m_layers[0][i]->output = values[i];
@@ -381,20 +390,20 @@ namespace sa
 		{
 			return m_nets.size();
 		}
-		batch mutate( size_t batchSize = 0, double mutateRate = 0.02)
+		batch mutate(size_t batchSize = 0, double mutateRate = 0.02)
 		{
-			if(batchSize == 0)
+			if (batchSize == 0)
 			{
 				batchSize = this->size();
 			}
-			if(this->size() < 1)
+			if (this->size() < 1)
 			{
 				std::runtime_error("Batch empty");
 			}
 			batch newB(*this);
 			newB.m_nets.resize(batchSize);
 			net<T> bestNet = getMostFitNet();
-			for(size_t i = 0; i < batchSize; i++)
+			for (size_t i = 0; i < batchSize; i++)
 			{
 				newB.m_nets[i] = net<T>(bestNet);
 				newB.m_nets[i].mutate(mutateRate);
@@ -404,7 +413,7 @@ namespace sa
 		template <class... Params>
 		void construct(Params... p)
 		{
-			for(auto &net : m_nets)
+			for (auto &net : m_nets)
 			{
 				net.construct(p...);
 			}
@@ -412,32 +421,32 @@ namespace sa
 		}
 		void trainBatch(std::vector<T> &values, std::vector<T> &expected)
 		{
-			if(!initialized)
+			if (!initialized)
 				std::runtime_error("Batch not initialized!");
-			std::vector<std::thread> m_threads;
-			for(auto &n : m_nets)
+			size_t threads = std::thread::hardware_concurrency();
+			for (size_t i = 0; i < m_nets.size(); i++)
 			{
-			    n.train(values, expected);
+				m_nets[i].train(values, expected);
 			}
 		}
 		net<T> getMostFitNet()
 		{
 			std::vector<T> errorSums;
 			errorSums.resize(m_nets.size());
-			for(unsigned i = 0; i < m_nets.size(); i++)
+			for (size_t i = 0; i < m_nets.size(); i++)
 			{
 				layer l = m_nets[i].back();
-				for(auto &OutNeuron : l)
+				for (auto &OutNeuron : l)
 				{
 					auto error = abs(OutNeuron->delta / (OutNeuron->output * (1 - OutNeuron->output)));
 					errorSums[i] += error;
 				}
 			}
-			unsigned index = 0;
+			size_t index = 0;
 			T smallest = INFINITY;
-			for(unsigned i = 0; i < errorSums.size(); i++)
+			for (size_t i = 0; i < errorSums.size(); i++)
 			{
-				if(errorSums[i] < smallest)
+				if (errorSums[i] < smallest)
 				{
 					smallest = errorSums[i];
 					index = i;
