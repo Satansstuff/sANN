@@ -287,7 +287,6 @@ namespace sa
 		void train(std::vector<T> &values, std::vector<T> &expected)
 		{
 			layer results = this->feedForward(values);
-			double outError = 0;
 			std::vector<T> resultValues;
 			for (auto &result : results)
 			{
@@ -316,11 +315,12 @@ namespace sa
 				double error = 0.0;
 				layer currLayer = m_layers[i];
 				layer topLayer = m_layers[i + 1];
+				layer prevLayer = m_layers[i - 1];
 				for (auto &n : currLayer)
 				{
 					for (size_t j = 0; j < topLayer.size(); j++)
 					{
-						error += topLayer[j]->delta * n->m_weights[j];
+						error += topLayer[j]->delta * n->m_weights[prevLayer.size() - 1];
 					}
 					n->delta = n->output * (1 - n->output) * error;
 				}
@@ -333,6 +333,7 @@ namespace sa
 					n->updateFreeParams(m_layers[i - 1]);
 				}
 			}
+			return;
 		}
 		layer feedForward(std::vector<T> &values) &
 		{
@@ -408,7 +409,14 @@ namespace sa
 				newB.m_nets[i] = net<T>(bestNet);
 				newB.m_nets[i].mutate(mutateRate);
 			}
-			return newB;
+			if (newB.getMostFitNet().getAvgError() < this->getMostFitNet().getAvgError())
+			{
+				return newB;
+			}
+			else
+			{
+				return *this;
+			}
 		}
 		template <class... Params>
 		void construct(Params... p)
@@ -423,10 +431,15 @@ namespace sa
 		{
 			if (!initialized)
 				std::runtime_error("Batch not initialized!");
-			size_t threads = std::thread::hardware_concurrency();
-			for (size_t i = 0; i < m_nets.size(); i++)
+			std::vector<std::future<void>> m_futures;
+			m_futures.resize(m_nets.size());
+			for (unsigned i = 0; i < m_nets.size(); i++)
 			{
-				m_nets[i].train(values, expected);
+				m_futures[i] = std::async(std::launch::async, &net<T>::train, &m_nets[i], values, expected);
+			}
+			for (unsigned i = 0; i < m_futures.size(); i++)
+			{
+				m_futures[i].wait();
 			}
 		}
 		net<T> getMostFitNet()
