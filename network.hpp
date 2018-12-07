@@ -27,16 +27,17 @@ Also if this becomes skynet, you owe me a beer.
 #include <thread>
 #include <future>
 
+
 std::vector<std::string> split(std::string target, char delim)
 {
-	std::vector<std::string> v;
+	std::vector<std::string> lk;
 	std::istringstream ss(target);
 	std::string line;
 	while (std::getline(ss, line, delim))
 	{
-		v.push_back(line);
+		lk.push_back(line);
 	}
-	return v;
+	return lk;
 }
 namespace sa
 {
@@ -157,6 +158,7 @@ namespace sa
 		net operator=(const net &other)
 		{
 			std::vector<layer> layers = other.m_layers;
+			m_layers.resize(layers.size());
 			for (size_t i = 0; i < layers.size(); i++)
 			{
 				layer newLayer;
@@ -387,6 +389,15 @@ namespace sa
 		{
 			m_nets.resize(batchSize);
 		}
+		batch(size_t batchSize, sa::net<T> &templat)
+		{
+			m_nets.resize(batchSize);
+			for (unsigned i = 0; i < batchSize; i++)
+			{
+				m_nets[i] = sa::net<T>(templat);
+				m_nets[i].mutate(0.02);
+			}
+		}
 		size_t size()
 		{
 			return m_nets.size();
@@ -432,10 +443,10 @@ namespace sa
 			if (!initialized)
 				std::runtime_error("Batch not initialized!");
 			std::vector<std::future<void>> m_futures;
-			m_futures.resize(m_nets.size());
-			for (unsigned i = 0; i < m_nets.size(); i++)
+			m_futures.resize(m_nets.size() - 1);
+			for (unsigned i = 0; i < m_nets.size() - 1; i++)
 			{
-				m_futures[i] = std::async(std::launch::async, &net<T>::train, &m_nets[i], values, expected);
+				m_futures[i] = std::async(std::launch::async, [&] { return m_nets[i].train(values, expected); });
 			}
 			for (unsigned i = 0; i < m_futures.size(); i++)
 			{
